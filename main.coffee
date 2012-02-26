@@ -76,14 +76,33 @@ copyImage = (img, callback, c = makeCanvas()) ->
 
 
 #rotate
-
-rotateRight90 =  (c, callback) ->
+#see: http://www.ajaxblender.com/howto-rotate-image-using-javascript-canvas.html
+rotateRight =  (c, callback) ->
   #swap width and height for the new canvas
   #c2 = makeCanvas(c.height,c.width)
   #c2_ctx=c2.getContext('2d')
   [c2,c2_ctx] = makeCanvasAndContext(c.height, c.width)
   c2_ctx.rotate(90*Math.PI/180)
   c2_ctx.drawImage(c,0,c.height*-1)
+  #call callback
+  nonBlock(callback, c2) if callback
+  return c2
+
+flip = (c, callback) ->
+  [c2,c2_ctx] = makeCanvasAndContext(c.width, c.height)
+  #c2_ctx.rotate(180*Math.PI/180)
+  c2_ctx.rotate(Math.PI)
+  c2_ctx.drawImage(c,c.width*-1,c.height*-1)
+  nonBlock(callback, c2) if callback
+  return c2
+
+rotateLeft =  (c, callback) ->
+  #swap width and height for the new canvas
+  #c2 = makeCanvas(c.height,c.width)
+  #c2_ctx=c2.getContext('2d')
+  [c2,c2_ctx] = makeCanvasAndContext(c.height, c.width)
+  c2_ctx.rotate(-90*Math.PI/180)
+  c2_ctx.drawImage(c,c.width*-1,0)
   #call callback
   nonBlock(callback, c2) if callback
   return c2
@@ -104,10 +123,13 @@ mirror = (c, callback) ->
 
 
 window.Canwaste =
-  rotateRight90: rotateRight90
+  rotateRight: rotateRight
+  rotateLeft: rotateLeft
+  flip: flip
+  mirror: mirror
   copyCanvas: copyCanvas
   simpleCopyCanvas: simpleCopyCanvas
   copyImage: copyImage
-  mirror: mirror
+
 
 

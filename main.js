@@ -1,5 +1,5 @@
 (function() {
-  var DEBUG, DEFAULT_CANVAS_HEIGHT, DEFAULT_CANVAS_WIDTH, copyCanvas, copyImage, dlog, makeCanvas, makeCanvasAndContext, mirror, nonBlock, rotateRight90, simpleCopyCanvas;
+  var DEBUG, DEFAULT_CANVAS_HEIGHT, DEFAULT_CANVAS_WIDTH, copyCanvas, copyImage, dlog, flip, makeCanvas, makeCanvasAndContext, mirror, nonBlock, rotateLeft, rotateRight, simpleCopyCanvas;
   var __slice = Array.prototype.slice;
   DEBUG = true;
   DEFAULT_CANVAS_WIDTH = 360;
@@ -75,11 +75,31 @@
     }
     return c;
   };
-  rotateRight90 = function(c, callback) {
+  rotateRight = function(c, callback) {
     var c2, c2_ctx, _ref;
     _ref = makeCanvasAndContext(c.height, c.width), c2 = _ref[0], c2_ctx = _ref[1];
     c2_ctx.rotate(90 * Math.PI / 180);
     c2_ctx.drawImage(c, 0, c.height * -1);
+    if (callback) {
+      nonBlock(callback, c2);
+    }
+    return c2;
+  };
+  flip = function(c, callback) {
+    var c2, c2_ctx, _ref;
+    _ref = makeCanvasAndContext(c.width, c.height), c2 = _ref[0], c2_ctx = _ref[1];
+    c2_ctx.rotate(Math.PI);
+    c2_ctx.drawImage(c, c.width * -1, c.height * -1);
+    if (callback) {
+      nonBlock(callback, c2);
+    }
+    return c2;
+  };
+  rotateLeft = function(c, callback) {
+    var c2, c2_ctx, _ref;
+    _ref = makeCanvasAndContext(c.height, c.width), c2 = _ref[0], c2_ctx = _ref[1];
+    c2_ctx.rotate(-90 * Math.PI / 180);
+    c2_ctx.drawImage(c, c.width * -1, 0);
     if (callback) {
       nonBlock(callback, c2);
     }
@@ -97,10 +117,12 @@
     return c2;
   };
   window.Canwaste = {
-    rotateRight90: rotateRight90,
+    rotateRight: rotateRight,
+    rotateLeft: rotateLeft,
+    flip: flip,
+    mirror: mirror,
     copyCanvas: copyCanvas,
     simpleCopyCanvas: simpleCopyCanvas,
-    copyImage: copyImage,
-    mirror: mirror
+    copyImage: copyImage
   };
 }).call(this);

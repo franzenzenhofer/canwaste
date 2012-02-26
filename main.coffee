@@ -17,7 +17,17 @@ dlog = (msg) -> console.log(msg) if DEBUG
 
 nonBlock = (callback, parameters...) -> window.setTimeout(callback, 0, parameters...)
 
+getImageDataAndPixels = (c) ->
+  c_ctx = c.getContext('2d')
+  c_imgd = c_ctx.getImageData(0,0,c.width,c.height)
+  c_pixels = c_imgd.data
+  return [c_imgd, c_pixels]
 
+getCanvasToolbox = (c) ->
+  context = c.getContext('2d')
+  imageData = context.getImageData(0,0,c.width,c.height)
+  pixels  = imageData.data
+  return [context,imageData, pixels]
 
 #-----------------------------------------------------------------------
 # helpful canvas functions
@@ -39,6 +49,30 @@ makeCanvas = (width=DEFAULT_CANVAS_WIDTH, height=DEFAULT_CANVAS_HEIGHT, id) ->
 makeCanvasAndContext = (width, height, id) ->
   c = makeCanvas(width, height, id)
   return [c, c.getContext('2d')]
+
+makeCanvasToolbox = (width, height, id) ->
+  c = makeCanvas(width,height, id)
+  toolbox = getCanvasToolbox(c)
+  toolbox.unshift(c)
+  return toolbox
+
+#make a canvas like another canvas
+makeCanvasLike = (c, id=true) ->
+  if typeof id is 'boolean'
+    if id is true then id = c.getAttribute('id')
+    else id = undefined
+  makeCanvas(c.width, c.height, id)
+
+makeCanvasAndContextLike = (c, id) ->
+  c = makeCanvasLike(c, id)
+  return [c, c.getContext('2d')]
+
+makeCanvasToolboxLike = (c, id) ->
+  c = makeCanvasLike(c, id)
+  toolbox = getCanvasToolbox(c)
+  toolbox.unshift(c)
+  return toolbox
+
 
 # make a simple copy of the image information of the old canvas to the new canvas
 simpleCopyCanvas = (c, callback, width=c.width,height=c.height) ->
@@ -110,14 +144,55 @@ rotateLeft =  (c, callback) ->
 #mirror
 # see: http://www.html5canvastutorials.com/advanced/html5-canvas-mirror-transform-tutorial/
 mirror = (c, callback) ->
-  #c2 = makeCanvas(c.width,c.height)
-  #c2_ctx = c2.getContext('2d')
-  [c2,c2_ctx] = makeCanvasAndContext(c.width, c.height)
-  c2_ctx.translate(c2.width / 2,0)
-  c2_ctx.scale(-1, 1)
-  c2_ctx.drawImage(c,(c2.width / 2)*-1,0)
-  nonBlock(callback, c2) if callback
-  return c2
+  nonBlock( ->
+    [c2,c2_ctx] = makeCanvasAndContext(c.width, c.height)
+    c2_ctx.translate(c2.width / 2,0)
+    c2_ctx.scale(-1, 1)
+    c2_ctx.drawImage(c,(c2.width / 2)*-1,0)
+    nonBlock(callback, c2) if callback
+    return c2
+  )
+
+blackWhite = (c, callback) ->
+  bw = () ->
+    [width, height] = [c.width, c.height]
+    #first we create a copy of the old canvas
+    c2 = simpleCopyCanvas(c)
+    [c2_ctx, c2_imgd, c2_pixels] = getCanvasToolbox(c2)
+    dlog('INBLACKWHITE')
+    dlog(getCanvasToolbox(c2))
+
+    #and we make an output canvas which we write to
+    [c3, c3_ctx,c3_imgd, c3_pixels] = makeCanvasToolboxLike(c)
+    #dlog(c2_pixels)
+
+    y = 0
+    dlog(height)
+    dlog(width)
+    while y < height
+      #erste reihe
+      x = 0
+      while x < width
+        current_pixel = (y*width + x) * 4
+        #dlog('currentpixel:'+current_pixel)
+        [c2_r,c2_g,c2_b,c2_a] = [c2_pixels[current_pixel],c2_pixels[current_pixel+1],c2_pixels[current_pixel+2],c2_pixels[current_pixel+3]]
+        factor = (c2_r * 0.3) + (c2_g * 0.59) + (c2_b * 0.11)
+
+        c3_pixels[current_pixel] = factor
+        c3_pixels[current_pixel+1] = factor
+        c3_pixels[current_pixel+2] = factor
+        c3_pixels[current_pixel+3] = c2_a
+
+        #nächste reihe
+        x=x+1
+      #nächste linie
+      y=y+1
+
+    #c.getContext('2d').putImageData(c3_imgd,0,0)
+    c3_ctx.putImageData(c3_imgd,0,0)
+    nonBlock(callback, c3) if callback
+    return c3
+  nonBlock(bw)
 
 #export the canvaseffects
 
@@ -130,6 +205,10 @@ window.Canwaste =
   copyCanvas: copyCanvas
   simpleCopyCanvas: simpleCopyCanvas
   copyImage: copyImage
+  blackWhite: blackWhite
+
+
+
 
 
 

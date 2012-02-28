@@ -29,6 +29,8 @@ getCanvasToolbox = (c) ->
   pixels  = imageData.data
   return [context,imageData, pixels]
 
+
+
 #-----------------------------------------------------------------------
 # helpful canvas functions
 #-----------------------------------------------------------------------
@@ -90,6 +92,22 @@ simpleCopyCanvas = (c, callback, width=c.width,height=c.height) ->
 # copyCanvas is currently just a handover function to simpleCopyCanvas
 # but this will probably change in the future
 copyCanvas = (c, callback, width, height) -> simpleCopyCanvas(c, callback, width, height)
+
+#this function is designed to set Uint8Array into imagedata.data and then call putImageData
+# see: http://blog.digitalbackcountry.com/2012/01/dealing-with-binary-data-from-a-canvas-object-using-javascript-typedarrays/
+setImageData = (c, a, callback) ->
+  nonBlock( ->
+    [c_ctx, c_imgd, c_pixels] = getCanvasToolbox(c)
+    i = 0
+    while i < c_pixels.length
+      c_pixels[i]=a[i]
+      i=i+1
+    c_ctx.putImageData(c_pixels,0,0)
+  )
+
+#------------------
+# cool canvas functions
+#--------------------
 
 # copyImage
 # expects an image as the first argument

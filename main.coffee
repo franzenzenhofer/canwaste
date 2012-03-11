@@ -67,6 +67,7 @@ nonBlockIf = (f, callback, parameters...) ->
 #private
 # return context, imageData, imageData.data of the given canvas
 getCanvasToolbox = (c) ->
+  if (c.tagName is 'image' or c.tagName is 'Image') then c = image2canvas(c) #will throw an error if image has not width or height (not loaded yet)
   context = c.getContext('2d')
   imageData = context.getImageData(0,0,c.width,c.height)
   pixels  = imageData.data
@@ -75,14 +76,14 @@ getCanvasToolbox = (c) ->
 # private
 #clamp is simple function to set a min and max of a given vlaue
 # default it's optimized for range from 0 to 255 (inclusive)
-clamp = (v,min=0,max=255) ->
-  if v >= min
-    if v >= max
-      return max
-    else
-      return v
-  else
-    return min
+clamp = (v,clamp_min=0,c,clamp_max=255) -> Math.min(clamp_max, Math.max(clamp_min, v))
+#  if v >= min
+#    if v >= max
+#      return max
+#    else
+#      return v
+#  else
+#    return min
 
 #currently synchronous only
 #array2canvas = (a, w, h, callback, c = makeCanvas()) ->
@@ -202,6 +203,7 @@ image2canvas = (img, callback) ->
       if callback
         img.onload(()->drawImage2Canvas(img, callback))
       else #waiting for the onload event makes only sense if this method was called with a callback
+        throw (new Error('image2canvas called synchronous and image was not loaded yet'))
         return false
   nonBlockIf(f, callback)
 
@@ -331,14 +333,14 @@ green = (c, callback) ->
 blue = (c, callback) ->
   doFilter(c, ((r,g,b,a) -> return [0,0,b,a]), callback)
 
-moreRed = (c, m, callback) ->
+moreRed = (c, callback, m) ->
   doFilter(c, ((r,g,b,a) -> return [clamp(r*m),g,b,a]), callback)
 
-moreGreen = (c, m, callback) -> doFilter(c, ((r,g,b,a) -> return [r,clamp(g*m),b,a]), callback)
+moreGreen = (c, callback, m) -> doFilter(c, ((r,g,b,a) -> return [r,clamp(g*m),b,a]), callback)
 
-moreBlue = (c, m, callback) -> doFilter(c, ((r,g,b,a) -> return [r,g,clamp(b*m),a]), callback)
+moreBlue = (c, callback, m) -> doFilter(c, ((r,g,b,a) -> return [r,g,clamp(b*m),a]), callback)
 
-moreAlpha = (c, m, callback) -> doFilter(c, ((r,g,b,a) -> return [r,g,b,clamp(a*m)]), callback)
+moreAlpha = (c, callback, m) -> doFilter(c, ((r,g,b,a) -> return [r,g,b,clamp(a*m)]), callback)
 
 neg = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [clamp(255-r),clamp(255-g),clamp(255-b),a]), callback)
 
@@ -358,6 +360,124 @@ sepia = (c, callback) ->
     b2 = (r * 0.272) + (g * 0.534) + (b * 0.131)
     return [clamp(r2), clamp(g2), clamp(b2), a]
   doFilter(c, filter, callback)
+
+posterize = (c, callback, amount=5) ->
+  amount = clamp(amount, 1)
+  step = Math.floor(255 / amount)
+  filter = (r,g,b,a) ->
+    r2 = clamp(Math.floor(r / step) * step)
+    g2 = clamp(Math.floor(g / step) * step)
+    b2 = clamp(Math.floor(b / step) * step)
+    return [r2, g2, b2, a]
+  doFilter(c, filter, callback)
+
+grayScale = (c, callback) ->
+  filter = (r,g,b,a) ->
+    average = (r+g+b)/3
+    return [average, average, average, a]
+  doFilter(c, filter, callback)
+
+tint_min = 85
+tint_max = 170
+tint = (c, callback, min_r=tint_min, min_g=tint_min, min_b=tint_min, max_a=tint_max, max_b=tint_max, max_g=tint_max) ->
+  if min_r is max_r then max_r = max_r+1
+  if min_g is max_g then max_g = max_g+1
+  if min_b is max_b then max_b = max_b+1
+  filter = (r,g,b,a) ->
+    r2 = clamp((r - min_r) * ((255 / (max_r - min_r))))
+    g2 = clamp((g - min_r) * ((255 / (max_g - min_g))))
+    b2 = clamp((b - min_b) * ((255 / (max_b - min_b))))
+    return [r2,g2,b2,a]
+  doFilter(c, filter, callback)
+
+#ImageFilterWrapper
+#
+imageFilterWrapper = (c, image_filter_func, callback, parameters...) ->
+  f = () ->
+    dlog('imageFilterWrapper')
+    dlog(c)
+    [c_ctx, c_imgd, c_pixels] = getCanvasToolbox(c)
+    [c2, c2_ctx, c2_imgd, c2_pixels] = makeCanvasToolboxLike(c)
+    dlog(c_imgd)
+    #stupid hack to async the ImageFilters actual work
+    nonBlock( () -> c2_ctx.putImageData(image_filter_func(c_imgd, parameters...), 0,0) )
+    nonBlockIf(callback, callback, c2)
+    return c2
+  nonBlockIf(f, callback)
+
+#test them at http://www.arahaya.com/imagefilters/
+#ImageFilters.Mosaic (srcImageData, blockSize)
+mosaic = (c, callback, blockSize=10) -> imageFilterWrapper(c, ImageFilters.Mosaic, callback, blockSize)
+#  f = () ->
+#    [c_ctx, c_imgd, c_pixels] = getCanvasToolbox(c)
+#    [c2, c2_ctx, c2_imgd, c2_pixels] = makeCanvasToolboxLike(c)
+#    c2_ctx.putImageData(ImageFilters.Mosaic(c_imgd, blockSize), 0,0)
+#    nonBlockIf(callback, callback, c2)
+#    return c2
+#  nonBlockIf(f, callback)
+
+#ImageFilters.ConvolutionFilter (srcImageData, matrixX, matrixY, matrix, divisor, bias, preserveAlpha, clamp, color, alpha)
+
+#ImageFilters.Binarize (srcImageData, threshold)
+#threshold between 0 and 1
+binarize = (c, callback, threshold=0.5) -> imageFilterWrapper(c, ImageFilters.Binarize, callback, threshold)
+#ImageFilters.BlendAdd (srcImageData, blendImageData, dx, dy)
+#ImageFilters.BlendSubtract (srcImageData, blendImageData, dx, dy)
+#ImageFilters.BoxBlur (srcImageData, hRadius, vRadius, quality)
+
+#ImageFilters.GaussianBlur (srcImageData, strength)
+# pretty slow and blocks?
+gausianBlur = (c, callback, strength=4) -> imageFilterWrapper(c, ImageFilters.GaussianBlur, callback, strength)
+
+#ImageFilters.StackBlur (srcImageData, radius)
+#ImageFilters.Brightness (srcImageData, brightness)
+#ImageFilters.BrightnessContrastGimp (srcImageData, brightness, contrast)
+#ImageFilters.BrightnessContrastPhotoshop (srcImageData, brightness, contrast)
+#ImageFilters.Channels (srcImageData, channel)
+#ImageFilters.Clone (srcImageData)
+#ImageFilters.CloneBuiltin (srcImageData)
+#ImageFilters.ColorMatrixFilter (srcImageData, matrix)
+#ImageFilters.ColorTransformFilter (srcImageData, redMultiplier, greenMultiplier, blueMultiplier, alphaMultiplier, redOffset, greenOffset, blueOffset, alphaOffset)
+#ImageFilters.Copy (srcImageData, dstImageData)
+#ImageFilters.Crop (srcImageData, x, y, width, height)
+#ImageFilters.CropBuiltin (srcImageData, x, y, width, height)
+#ImageFilters.Desaturate (srcImageData)
+#ImageFilters.DisplacementMapFilter (srcImageData, mapImageData, mapX, mapY, componentX, componentY, scaleX, scaleY, mode)
+#ImageFilters.Dither (srcImageData, levels)
+
+#ImageFilters.Edge (srcImageData)
+edge = (c, callback) -> imageFilterWrapper(c, ImageFilters.Edge, callback)
+
+#ImageFilters.Emboss (srcImageData)
+emboss = (c, callback) -> imageFilterWrapper(c, ImageFilters.Emboss, callback)
+
+#ImageFilters.Enrich (srcImageData)
+enrich = (c, callback) -> imageFilterWrapper(c, ImageFilters.Enrich, callback)
+
+#ImageFilters.Flip (srcImageData, vertical)
+#ImageFilters.Gamma (srcImageData, gamma)
+#ImageFilters.GrayScale (srcImageData)
+#ImageFilters.HSLAdjustment (srcImageData, hueDelta, satDelta, lightness)
+#ImageFilters.Invert (srcImageData)
+
+#ImageFilters.Oil (srcImageData, range, levels)
+oil = (c, callback, range=4, levels=80) -> imageFilterWrapper(c, ImageFilters.Oil, callback, range, levels)
+#ImageFilters.OpacityFilter (srcImageData, opacity)
+#ImageFilters.Posterize (srcImageData, levels)
+#ImageFilters.Rescale (srcImageData, scale)
+#ImageFilters.Resize (srcImageData, width, height)
+#ImageFilters.ResizeNearestNeighbor (srcImageData, width, height)
+##ImageFilters.Sepia srcImageData)
+#ImageFilters.Sharpen (srcImageData, factor)
+#ImageFilters.Solarize (srcImageData)
+solarize = (c, callback) -> imageFilterWrapper(c, ImageFilters.Solarize, callback)
+
+#ImageFilters.Transpose (srcImageData)
+transpose = (c, callback) -> imageFilterWrapper(c, ImageFilters.Transpose, callback)
+
+#ImageFilters.Twril (srcImageData, centerX, centerY, radius, angle, edge, smooth)
+
+
 
 
 #
@@ -410,35 +530,52 @@ sepia = (c, callback) ->
 
 window.Canwaste =
   _DEBUG_: _DEBUG_ #debug flag
-  makeCanvas: makeCanvas #helper (sync)
-  makeCanvasLike: makeCanvasLike #helper (sync)
-  makeCanvasToolboxLike: makeCanvasToolboxLike #helper (sync)
-  simpleCopyCanvas: simpleCopyCanvas #creater (sync/async)
-  copyCanvas: copyCanvas #creator (sync/async)
-  canvas2canvas: canvas2canvas #creator (sync/async)
-  image2canvas: image2canvas #creator (sync/async) but async makes more sense
-  array2canvas: array2canvas #creator (sync/async)
-  rotateRight: rotateRight #effect (sync/async)
-  rotateLeft: rotateLeft #effect (sync/async)
-  flip: flip #effect (sync/async)
-  mirror: mirror #effect (sync/async)
-  doFilter: doFilter #filter meta (sync/async)
-  blackWhite: blackWhite #filter (sync/async)
-  nothing: nothing #filter (sync/async)
-  red: red #filter (sync/async)
-  blue: blue #filter (sync/async)
-  green: green #filter (sync/async)
-  moreRed: moreRed #filter (sync/async)
-  moreGreen: moreGreen #filter (sync/async)
-  moreBlue: moreBlue #filter (sync/async)
-  moreAlpha: moreAlpha #filter (sync/async)
-  neg: neg #filter (sync/async)
-  bgr: bgr #filter (sync/async)
-  gbr: gbr #filter (sync/async)
-  brg: brg #filter (sync/async)
-  rbg: rbg #filter (sync/async)
-  grb: grb #filter (sync/async)
-  sepia: sepia #filter (sync/async)
+  helper:
+    makeCanvas: makeCanvas #helper (sync)
+    makeCanvasLike: makeCanvasLike #helper (sync)
+    makeCanvasToolboxLike: makeCanvasToolboxLike #helper (sync)
+    simpleCopyCanvas: simpleCopyCanvas #creater (sync/async)
+    doFilter: doFilter #filter meta (sync/async)
+  creator:
+    copyCanvas: copyCanvas #creator (sync/async)
+    canvas2canvas: canvas2canvas #creator (sync/async)
+    image2canvas: image2canvas #creator (sync/async) but async makes more sense
+    array2canvas: array2canvas #creator (sync/async)
+  effect:
+    rotateRight: rotateRight #effect (sync/async)
+    rotateLeft: rotateLeft #effect (sync/async)
+    flip: flip #effect (sync/async)
+    mirror: mirror #effect (sync/async)
+  filter:
+    blackWhite: blackWhite #filter (sync/async)
+    nothing: nothing #filter (sync/async)
+    red: red #filter (sync/async)
+    blue: blue #filter (sync/async)
+    green: green #filter (sync/async)
+    moreRed: moreRed #filter (sync/async)
+    moreGreen: moreGreen #filter (sync/async)
+    moreBlue: moreBlue #filter (sync/async)
+    moreAlpha: moreAlpha #filter (sync/async)
+    neg: neg #filter (sync/async)
+    bgr: bgr #filter (sync/async)
+    gbr: gbr #filter (sync/async)
+    brg: brg #filter (sync/async)
+    rbg: rbg #filter (sync/async)
+    grb: grb #filter (sync/async)
+    sepia: sepia #filter (sync/async)
+    posterize: posterize #filter (sync/async)
+    grayScale: grayScale #filter (sync/async)
+    tint: tint #filter (sync/async)
+    mosaic: mosaic #filter (sync/async)
+    binarize: binarize #filter (sync/async)
+    gausianBlur: gausianBlur #filter (sync/async) #slow and blocks
+    edge: edge #filter (sync/async)
+    emboss: emboss #filter (sync/async)
+    enrich: enrich #filter (sync/async)
+    solarize: solarize
+    transpose: transpose
+    oil: oil
+
 
 
 

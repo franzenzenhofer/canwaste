@@ -1,5 +1,5 @@
 (function() {
-  var DEFAULT_CANVAS_HEIGHT, DEFAULT_CANVAS_WIDTH, array2canvas, bgr, blackWhite, blue, brg, canvas2canvas, clamp, copyCanvas, dlog, doFilter, flip, gbr, getCanvasToolbox, grb, green, image2canvas, makeCanvas, makeCanvasLike, makeCanvasToolbox, makeCanvasToolboxLike, mirror, moreAlpha, moreBlue, moreGreen, moreRed, neg, nonBlock, nonBlockIf, nothing, rbg, red, rgb, rotateLeft, rotateRight, sepia, simpleCopyCanvas, _DEBUG_;
+  var DEFAULT_CANVAS_HEIGHT, DEFAULT_CANVAS_WIDTH, array2canvas, bgr, binarize, blackWhite, blue, brg, canvas2canvas, clamp, copyCanvas, dlog, doFilter, edge, emboss, enrich, flip, gausianBlur, gbr, getCanvasToolbox, grayScale, grb, green, image2canvas, imageFilterWrapper, makeCanvas, makeCanvasLike, makeCanvasToolbox, makeCanvasToolboxLike, mirror, moreAlpha, moreBlue, moreGreen, moreRed, mosaic, neg, nonBlock, nonBlockIf, nothing, oil, posterize, rbg, red, rgb, rotateLeft, rotateRight, sepia, simpleCopyCanvas, solarize, tint, tint_max, tint_min, transpose, _DEBUG_;
   var __slice = Array.prototype.slice;
   DEFAULT_CANVAS_WIDTH = 360;
   DEFAULT_CANVAS_HEIGHT = 240;
@@ -29,27 +29,22 @@
   };
   getCanvasToolbox = function(c) {
     var context, imageData, pixels;
+    if (c.tagName === 'image' || c.tagName === 'Image') {
+      c = image2canvas(c);
+    }
     context = c.getContext('2d');
     imageData = context.getImageData(0, 0, c.width, c.height);
     pixels = imageData.data;
     return [context, imageData, pixels];
   };
-  clamp = function(v, min, max) {
-    if (min == null) {
-      min = 0;
+  clamp = function(v, clamp_min, c, clamp_max) {
+    if (clamp_min == null) {
+      clamp_min = 0;
     }
-    if (max == null) {
-      max = 255;
+    if (clamp_max == null) {
+      clamp_max = 255;
     }
-    if (v >= min) {
-      if (v >= max) {
-        return max;
-      } else {
-        return v;
-      }
-    } else {
-      return min;
-    }
+    return Math.min(clamp_max, Math.max(clamp_min, v));
   };
   makeCanvas = function(width, height, id) {
     var c;
@@ -133,6 +128,7 @@
             return drawImage2Canvas(img, callback);
           });
         } else {
+          throw new Error('image2canvas called synchronous and image was not loaded yet');
           return false;
         }
       }
@@ -268,22 +264,22 @@
       return [0, 0, b, a];
     }), callback);
   };
-  moreRed = function(c, m, callback) {
+  moreRed = function(c, callback, m) {
     return doFilter(c, (function(r, g, b, a) {
       return [clamp(r * m), g, b, a];
     }), callback);
   };
-  moreGreen = function(c, m, callback) {
+  moreGreen = function(c, callback, m) {
     return doFilter(c, (function(r, g, b, a) {
       return [r, clamp(g * m), b, a];
     }), callback);
   };
-  moreBlue = function(c, m, callback) {
+  moreBlue = function(c, callback, m) {
     return doFilter(c, (function(r, g, b, a) {
       return [r, g, clamp(b * m), a];
     }), callback);
   };
-  moreAlpha = function(c, m, callback) {
+  moreAlpha = function(c, callback, m) {
     return doFilter(c, (function(r, g, b, a) {
       return [r, g, b, clamp(a * m)];
     }), callback);
@@ -330,36 +326,181 @@
     };
     return doFilter(c, filter, callback);
   };
+  posterize = function(c, callback, amount) {
+    var filter, step;
+    if (amount == null) {
+      amount = 5;
+    }
+    amount = clamp(amount, 1);
+    step = Math.floor(255 / amount);
+    filter = function(r, g, b, a) {
+      var b2, g2, r2;
+      r2 = clamp(Math.floor(r / step) * step);
+      g2 = clamp(Math.floor(g / step) * step);
+      b2 = clamp(Math.floor(b / step) * step);
+      return [r2, g2, b2, a];
+    };
+    return doFilter(c, filter, callback);
+  };
+  grayScale = function(c, callback) {
+    var filter;
+    filter = function(r, g, b, a) {
+      var average;
+      average = (r + g + b) / 3;
+      return [average, average, average, a];
+    };
+    return doFilter(c, filter, callback);
+  };
+  tint_min = 85;
+  tint_max = 170;
+  tint = function(c, callback, min_r, min_g, min_b, max_a, max_b, max_g) {
+    var filter, max_r;
+    if (min_r == null) {
+      min_r = tint_min;
+    }
+    if (min_g == null) {
+      min_g = tint_min;
+    }
+    if (min_b == null) {
+      min_b = tint_min;
+    }
+    if (max_a == null) {
+      max_a = tint_max;
+    }
+    if (max_b == null) {
+      max_b = tint_max;
+    }
+    if (max_g == null) {
+      max_g = tint_max;
+    }
+    if (min_r === max_r) {
+      max_r = max_r + 1;
+    }
+    if (min_g === max_g) {
+      max_g = max_g + 1;
+    }
+    if (min_b === max_b) {
+      max_b = max_b + 1;
+    }
+    filter = function(r, g, b, a) {
+      var b2, g2, r2;
+      r2 = clamp((r - min_r) * (255 / (max_r - min_r)));
+      g2 = clamp((g - min_r) * (255 / (max_g - min_g)));
+      b2 = clamp((b - min_b) * (255 / (max_b - min_b)));
+      return [r2, g2, b2, a];
+    };
+    return doFilter(c, filter, callback);
+  };
+  imageFilterWrapper = function() {
+    var c, callback, f, image_filter_func, parameters;
+    c = arguments[0], image_filter_func = arguments[1], callback = arguments[2], parameters = 4 <= arguments.length ? __slice.call(arguments, 3) : [];
+    f = function() {
+      var c2, c2_ctx, c2_imgd, c2_pixels, c_ctx, c_imgd, c_pixels, _ref, _ref2;
+      dlog('imageFilterWrapper');
+      dlog(c);
+      _ref = getCanvasToolbox(c), c_ctx = _ref[0], c_imgd = _ref[1], c_pixels = _ref[2];
+      _ref2 = makeCanvasToolboxLike(c), c2 = _ref2[0], c2_ctx = _ref2[1], c2_imgd = _ref2[2], c2_pixels = _ref2[3];
+      dlog(c_imgd);
+      nonBlock(function() {
+        return c2_ctx.putImageData(image_filter_func.apply(null, [c_imgd].concat(__slice.call(parameters))), 0, 0);
+      });
+      nonBlockIf(callback, callback, c2);
+      return c2;
+    };
+    return nonBlockIf(f, callback);
+  };
+  mosaic = function(c, callback, blockSize) {
+    if (blockSize == null) {
+      blockSize = 10;
+    }
+    return imageFilterWrapper(c, ImageFilters.Mosaic, callback, blockSize);
+  };
+  binarize = function(c, callback, threshold) {
+    if (threshold == null) {
+      threshold = 0.5;
+    }
+    return imageFilterWrapper(c, ImageFilters.Binarize, callback, threshold);
+  };
+  gausianBlur = function(c, callback, strength) {
+    if (strength == null) {
+      strength = 4;
+    }
+    return imageFilterWrapper(c, ImageFilters.GaussianBlur, callback, strength);
+  };
+  edge = function(c, callback) {
+    return imageFilterWrapper(c, ImageFilters.Edge, callback);
+  };
+  emboss = function(c, callback) {
+    return imageFilterWrapper(c, ImageFilters.Emboss, callback);
+  };
+  enrich = function(c, callback) {
+    return imageFilterWrapper(c, ImageFilters.Enrich, callback);
+  };
+  oil = function(c, callback, range, levels) {
+    if (range == null) {
+      range = 4;
+    }
+    if (levels == null) {
+      levels = 80;
+    }
+    return imageFilterWrapper(c, ImageFilters.Oil, callback, range, levels);
+  };
+  solarize = function(c, callback) {
+    return imageFilterWrapper(c, ImageFilters.Solarize, callback);
+  };
+  transpose = function(c, callback) {
+    return imageFilterWrapper(c, ImageFilters.Transpose, callback);
+  };
   window.Canwaste = {
     _DEBUG_: _DEBUG_,
-    makeCanvas: makeCanvas,
-    makeCanvasLike: makeCanvasLike,
-    makeCanvasToolboxLike: makeCanvasToolboxLike,
-    simpleCopyCanvas: simpleCopyCanvas,
-    copyCanvas: copyCanvas,
-    canvas2canvas: canvas2canvas,
-    image2canvas: image2canvas,
-    array2canvas: array2canvas,
-    rotateRight: rotateRight,
-    rotateLeft: rotateLeft,
-    flip: flip,
-    mirror: mirror,
-    doFilter: doFilter,
-    blackWhite: blackWhite,
-    nothing: nothing,
-    red: red,
-    blue: blue,
-    green: green,
-    moreRed: moreRed,
-    moreGreen: moreGreen,
-    moreBlue: moreBlue,
-    moreAlpha: moreAlpha,
-    neg: neg,
-    bgr: bgr,
-    gbr: gbr,
-    brg: brg,
-    rbg: rbg,
-    grb: grb,
-    sepia: sepia
+    helper: {
+      makeCanvas: makeCanvas,
+      makeCanvasLike: makeCanvasLike,
+      makeCanvasToolboxLike: makeCanvasToolboxLike,
+      simpleCopyCanvas: simpleCopyCanvas,
+      doFilter: doFilter
+    },
+    creator: {
+      copyCanvas: copyCanvas,
+      canvas2canvas: canvas2canvas,
+      image2canvas: image2canvas,
+      array2canvas: array2canvas
+    },
+    effect: {
+      rotateRight: rotateRight,
+      rotateLeft: rotateLeft,
+      flip: flip,
+      mirror: mirror
+    },
+    filter: {
+      blackWhite: blackWhite,
+      nothing: nothing,
+      red: red,
+      blue: blue,
+      green: green,
+      moreRed: moreRed,
+      moreGreen: moreGreen,
+      moreBlue: moreBlue,
+      moreAlpha: moreAlpha,
+      neg: neg,
+      bgr: bgr,
+      gbr: gbr,
+      brg: brg,
+      rbg: rbg,
+      grb: grb,
+      sepia: sepia,
+      posterize: posterize,
+      grayScale: grayScale,
+      tint: tint,
+      mosaic: mosaic,
+      binarize: binarize,
+      gausianBlur: gausianBlur,
+      edge: edge,
+      emboss: emboss,
+      enrich: enrich,
+      solarize: solarize,
+      transpose: transpose,
+      oil: oil
+    }
   };
 }).call(this);

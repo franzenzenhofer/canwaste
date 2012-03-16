@@ -6,21 +6,21 @@
     var editor;
     console.log('R E A D Y');
     editor = function(canvas) {
-      var aid, attachButtonAction, createActionButton, ed, key, value, _ref, _ref2;
+      var aid, attachButtonAction, canReplace, createActionButton, ed, key, m, value, _ref, _ref2;
       aid = '_' + id++;
       canvas.setAttribute('id', 'canvas' + aid);
       ed = $('<div id="editor' + aid + '"></div>');
       ed.append(canvas);
       ed.append('<br>');
       attachButtonAction = function() {
-        var button, canwaste_action, params;
-        button = arguments[0], canwaste_action = arguments[1], params = 3 <= arguments.length ? __slice.call(arguments, 2) : [];
+        var action, button, params;
+        button = arguments[0], action = arguments[1], params = 3 <= arguments.length ? __slice.call(arguments, 2) : [];
         return button.on('click', function() {
           var jCanvas;
           console.log(this);
           jCanvas = $($(this).attr('target'));
           canvas = jCanvas[0];
-          return canwaste_action.apply(null, [canvas, (function(c) {
+          return action.apply(null, [canvas, (function(c) {
             c.setAttribute('id', canvas.getAttribute('id'));
             return jCanvas.replaceWith(c);
           })].concat(__slice.call(params)));
@@ -33,6 +33,11 @@
         attachButtonAction.apply(null, [button, action].concat(__slice.call(params)));
         return button;
       };
+      canReplace = function(c) {};
+      m = function(c, callback) {
+        return Canwaste.helper.multiAsyncAction(c, callback, [Canwaste.filter.blackWhite, Canwaste.effect.flip, Canwaste.filter.mosaic, Canwaste.filter.solarize, Canwaste.effect.rotateRight]);
+      };
+      ed.append(createActionButton('M', '#canvas' + aid, m));
       _ref = Canwaste.filter;
       for (key in _ref) {
         value = _ref[key];

@@ -1,5 +1,5 @@
 (function() {
-  var DEFAULT_CANVAS_HEIGHT, DEFAULT_CANVAS_WIDTH, array2canvas, bgr, binarize, blackWhite, blue, brg, canvas2canvas, clamp, copyCanvas, dlog, doFilter, edge, emboss, enrich, flip, gausianBlur, gbr, getCanvasToolbox, grayScale, grb, green, image2canvas, imageFilterWrapper, makeCanvas, makeCanvasLike, makeCanvasToolbox, makeCanvasToolboxLike, mirror, moreAlpha, moreBlue, moreGreen, moreRed, mosaic, neg, nonBlock, nonBlockIf, nothing, oil, posterize, rbg, red, rgb, rotateLeft, rotateRight, sepia, simpleCopyCanvas, solarize, tint, tint_max, tint_min, transpose, _DEBUG_;
+  var DEFAULT_CANVAS_HEIGHT, DEFAULT_CANVAS_WIDTH, array2canvas, bgr, binarize, blackWhite, blue, blur, boxBlur, brg, canvas2canvas, clamp, copyCanvas, desaturate, dlog, doRgbaFilter, edge, emboss, enrich, flip, gausianBlur, gbr, getCanvasToolbox, grayScale, grb, green, image2canvas, imageFilterWrapper, makeCanvas, makeCanvasLike, makeCanvasToolbox, makeCanvasToolboxLike, mirror, moreAlpha, moreBlue, moreGreen, moreRed, mosaic, multiAsyncAction, neg, nonBlock, nonBlockIf, nothing, oil, posterize, rbg, red, rgb, rotateLeft, rotateRight, saturate, sepia, simpleCopyCanvas, solarize, stackBlur, tint, tint_max, tint_min, transpose, _DEBUG_;
   var __slice = Array.prototype.slice;
   DEFAULT_CANVAS_WIDTH = 360;
   DEFAULT_CANVAS_HEIGHT = 240;
@@ -88,6 +88,18 @@
     toolbox = getCanvasToolbox(c);
     toolbox.unshift(c);
     return toolbox;
+  };
+  multiAsyncAction = function(c, callback, actionA) {
+    var action;
+    dlog(actionA);
+    if (actionA && actionA.length > 1) {
+      action = actionA.shift();
+      return action(c, function(c) {
+        return multiAsyncAction(c, callback, actionA);
+      });
+    } else {
+      return actionA[0](c, callback);
+    }
   };
   simpleCopyCanvas = function(c, callback, width, height) {
     var f;
@@ -202,7 +214,7 @@
     };
     return nonBlockIf(f, callback);
   };
-  doFilter = function(c, filter, callback) {
+  doRgbaFilter = function(c, filter, callback) {
     var f;
     f = function() {
       var a, b, c2, c_ctx, c_imgd, c_pixels, current_pixel_i, g, height, r, u8, width, x, y, _ref, _ref2, _ref3;
@@ -242,76 +254,76 @@
       factor = (r * 0.3) + (g * 0.59) + (b * 0.11);
       return [factor, factor, factor, a];
     };
-    return doFilter(c, filter, callback);
+    return doRgbaFilter(c, filter, callback);
   };
   nothing = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [r, g, b, a];
     }), callback);
   };
   red = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [r, 0, 0, a];
     }), callback);
   };
   green = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [0, g, 0, a];
     }), callback);
   };
   blue = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [0, 0, b, a];
     }), callback);
   };
   moreRed = function(c, callback, m) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [clamp(r * m), g, b, a];
     }), callback);
   };
   moreGreen = function(c, callback, m) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [r, clamp(g * m), b, a];
     }), callback);
   };
   moreBlue = function(c, callback, m) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [r, g, clamp(b * m), a];
     }), callback);
   };
   moreAlpha = function(c, callback, m) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [r, g, b, clamp(a * m)];
     }), callback);
   };
   neg = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [clamp(255 - r), clamp(255 - g), clamp(255 - b), a];
     }), callback);
   };
   rgb = nothing;
   rbg = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [r, b, g, a];
     }), callback);
   };
   bgr = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [b, g, r, a];
     }), callback);
   };
   brg = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [b, r, g, a];
     }), callback);
   };
   gbr = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [g, b, r, a];
     }), callback);
   };
   grb = function(c, callback) {
-    return doFilter(c, (function(r, g, b, a) {
+    return doRgbaFilter(c, (function(r, g, b, a) {
       return [g, r, b, a];
     }), callback);
   };
@@ -324,7 +336,7 @@
       b2 = (r * 0.272) + (g * 0.534) + (b * 0.131);
       return [clamp(r2), clamp(g2), clamp(b2), a];
     };
-    return doFilter(c, filter, callback);
+    return doRgbaFilter(c, filter, callback);
   };
   posterize = function(c, callback, amount) {
     var filter, step;
@@ -340,7 +352,7 @@
       b2 = clamp(Math.floor(b / step) * step);
       return [r2, g2, b2, a];
     };
-    return doFilter(c, filter, callback);
+    return doRgbaFilter(c, filter, callback);
   };
   grayScale = function(c, callback) {
     var filter;
@@ -349,7 +361,7 @@
       average = (r + g + b) / 3;
       return [average, average, average, a];
     };
-    return doFilter(c, filter, callback);
+    return doRgbaFilter(c, filter, callback);
   };
   tint_min = 85;
   tint_max = 170;
@@ -389,7 +401,23 @@
       b2 = clamp((b - min_b) * (255 / (max_b - min_b)));
       return [r2, g2, b2, a];
     };
-    return doFilter(c, filter, callback);
+    return doRgbaFilter(c, filter, callback);
+  };
+  saturate = function(c, callback, t) {
+    var filter;
+    if (t == null) {
+      t = 0.3;
+    }
+    dlog('in saturate!!!!!');
+    dlog(c);
+    dlog(callback);
+    dlog(t);
+    filter = function(r, g, b, a) {
+      var average;
+      average = (r + g + b) / 3;
+      return [clamp(average + t * (r - average)), clamp(average + t * (g - average)), clamp(average + t * (b - average)), a];
+    };
+    return doRgbaFilter(c, filter, callback);
   };
   imageFilterWrapper = function() {
     var c, callback, f, image_filter_func, parameters;
@@ -421,11 +449,39 @@
     }
     return imageFilterWrapper(c, ImageFilters.Binarize, callback, threshold);
   };
+  boxBlur = function(c, callback, hRadius, vRadius, quality) {
+    if (hRadius == null) {
+      hRadius = 3;
+    }
+    if (vRadius == null) {
+      vRadius = 3;
+    }
+    if (quality == null) {
+      quality = 3;
+    }
+    return imageFilterWrapper(c, ImageFilters.BoxBlur, callback, hRadius, vRadius, quality);
+  };
   gausianBlur = function(c, callback, strength) {
     if (strength == null) {
       strength = 4;
     }
     return imageFilterWrapper(c, ImageFilters.GaussianBlur, callback, strength);
+  };
+  stackBlur = function(c, callback, radius) {
+    if (radius == null) {
+      radius = 6;
+    }
+    return imageFilterWrapper(c, ImageFilters.StackBlur, callback, radius);
+  };
+  blur = stackBlur;
+  desaturate = function(c, callback) {
+    return imageFilterWrapper(c, ImageFilters.Desaturate, callback);
+  };
+  stackBlur = function(c, callback, levels) {
+    if (levels == null) {
+      levels = 8;
+    }
+    return imageFilterWrapper(c, ImageFilters.Dither, callback, levels);
   };
   edge = function(c, callback) {
     return imageFilterWrapper(c, ImageFilters.Edge, callback);
@@ -458,7 +514,8 @@
       makeCanvasLike: makeCanvasLike,
       makeCanvasToolboxLike: makeCanvasToolboxLike,
       simpleCopyCanvas: simpleCopyCanvas,
-      doFilter: doFilter
+      doRgbaFilter: doRgbaFilter,
+      multiAsyncAction: multiAsyncAction
     },
     creator: {
       copyCanvas: copyCanvas,
@@ -492,6 +549,7 @@
       posterize: posterize,
       grayScale: grayScale,
       tint: tint,
+      saturate: saturate,
       mosaic: mosaic,
       binarize: binarize,
       gausianBlur: gausianBlur,
@@ -500,7 +558,11 @@
       enrich: enrich,
       solarize: solarize,
       transpose: transpose,
-      oil: oil
+      oil: oil,
+      stackBlur: stackBlur,
+      blur: blur,
+      boxBlur: boxBlur,
+      desaturate: desaturate
     }
   };
 }).call(this);

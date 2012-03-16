@@ -160,6 +160,18 @@ makeCanvasToolboxLike = (c, id) ->
   toolbox.unshift(c)
   return toolbox
 
+#multiAction(actions..., callback)
+multiAsyncAction = (c, callback, actionA) ->
+  dlog(actionA)
+  if actionA and actionA.length > 1
+    action = actionA.shift()
+    action(c, (c)-> multiAsyncAction(c, callback, actionA))
+  else
+    actionA[0](c, callback)
+
+
+
+
 #----------------------------
 # CREATOR CANVAS FUNCTION
 #--------------------------
@@ -277,7 +289,7 @@ mirror = (c, callback) ->
 # all filters are public
 
 
-#doFilter applies a filter function to every pixel in the canvas
+#doRgbaFilter applies a filter function to every pixel in the canvas
 #
 # convention over configuration
 # a passed filter-function must always look like this
@@ -286,7 +298,7 @@ mirror = (c, callback) ->
 # the canvas itself and the current_pixel_index will also be passed to the filter function
 # an array returning the new [r,g,b,a] is expected
 #
-doFilter = (c, filter, callback) ->
+doRgbaFilter = (c, filter, callback) ->
   f = () ->
     dlog('in filter function')
     dlog(callback)
@@ -319,39 +331,39 @@ doFilter = (c, filter, callback) ->
 
 blackWhite = (c, callback) ->
   filter = (r,g,b,a) -> factor = (r * 0.3) + (g * 0.59) + (b * 0.11); return [factor, factor, factor, a]
-  doFilter(c, filter, callback)
+  doRgbaFilter(c, filter, callback)
 
 nothing = (c, callback) ->
-  doFilter(c, ((r,g,b,a) -> return [r,g,b,a]), callback)
+  doRgbaFilter(c, ((r,g,b,a) -> return [r,g,b,a]), callback)
 
 red = (c, callback) ->
-  doFilter(c, ((r,g,b,a) -> return [r,0,0,a]), callback)
+  doRgbaFilter(c, ((r,g,b,a) -> return [r,0,0,a]), callback)
 
 green = (c, callback) ->
-  doFilter(c, ((r,g,b,a) -> return [0,g,0,a]), callback)
+  doRgbaFilter(c, ((r,g,b,a) -> return [0,g,0,a]), callback)
 
 blue = (c, callback) ->
-  doFilter(c, ((r,g,b,a) -> return [0,0,b,a]), callback)
+  doRgbaFilter(c, ((r,g,b,a) -> return [0,0,b,a]), callback)
 
 moreRed = (c, callback, m) ->
-  doFilter(c, ((r,g,b,a) -> return [clamp(r*m),g,b,a]), callback)
+  doRgbaFilter(c, ((r,g,b,a) -> return [clamp(r*m),g,b,a]), callback)
 
-moreGreen = (c, callback, m) -> doFilter(c, ((r,g,b,a) -> return [r,clamp(g*m),b,a]), callback)
+moreGreen = (c, callback, m) -> doRgbaFilter(c, ((r,g,b,a) -> return [r,clamp(g*m),b,a]), callback)
 
-moreBlue = (c, callback, m) -> doFilter(c, ((r,g,b,a) -> return [r,g,clamp(b*m),a]), callback)
+moreBlue = (c, callback, m) -> doRgbaFilter(c, ((r,g,b,a) -> return [r,g,clamp(b*m),a]), callback)
 
-moreAlpha = (c, callback, m) -> doFilter(c, ((r,g,b,a) -> return [r,g,b,clamp(a*m)]), callback)
+moreAlpha = (c, callback, m) -> doRgbaFilter(c, ((r,g,b,a) -> return [r,g,b,clamp(a*m)]), callback)
 
-neg = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [clamp(255-r),clamp(255-g),clamp(255-b),a]), callback)
+neg = (c, callback) -> doRgbaFilter(c, ((r,g,b,a) -> return [clamp(255-r),clamp(255-g),clamp(255-b),a]), callback)
 
 rgb = nothing
-rbg = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [r,b,g,a]), callback)
+rbg = (c, callback) -> doRgbaFilter(c, ((r,g,b,a) -> return [r,b,g,a]), callback)
 
-bgr = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [b,g,r,a]), callback)
-brg = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [b,r,g,a]), callback)
+bgr = (c, callback) -> doRgbaFilter(c, ((r,g,b,a) -> return [b,g,r,a]), callback)
+brg = (c, callback) -> doRgbaFilter(c, ((r,g,b,a) -> return [b,r,g,a]), callback)
 
-gbr = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [g,b,r,a]), callback)
-grb = (c, callback) -> doFilter(c, ((r,g,b,a) -> return [g,r,b,a]), callback)
+gbr = (c, callback) -> doRgbaFilter(c, ((r,g,b,a) -> return [g,b,r,a]), callback)
+grb = (c, callback) -> doRgbaFilter(c, ((r,g,b,a) -> return [g,r,b,a]), callback)
 
 sepia = (c, callback) ->
   filter = (r,g,b,a) ->
@@ -359,7 +371,7 @@ sepia = (c, callback) ->
     g2 = (r * 0.349) + (g * 0.686) + (b * 0.168)
     b2 = (r * 0.272) + (g * 0.534) + (b * 0.131)
     return [clamp(r2), clamp(g2), clamp(b2), a]
-  doFilter(c, filter, callback)
+  doRgbaFilter(c, filter, callback)
 
 posterize = (c, callback, amount=5) ->
   amount = clamp(amount, 1)
@@ -369,13 +381,13 @@ posterize = (c, callback, amount=5) ->
     g2 = clamp(Math.floor(g / step) * step)
     b2 = clamp(Math.floor(b / step) * step)
     return [r2, g2, b2, a]
-  doFilter(c, filter, callback)
+  doRgbaFilter(c, filter, callback)
 
 grayScale = (c, callback) ->
   filter = (r,g,b,a) ->
     average = (r+g+b)/3
     return [average, average, average, a]
-  doFilter(c, filter, callback)
+  doRgbaFilter(c, filter, callback)
 
 tint_min = 85
 tint_max = 170
@@ -388,7 +400,22 @@ tint = (c, callback, min_r=tint_min, min_g=tint_min, min_b=tint_min, max_a=tint_
     g2 = clamp((g - min_r) * ((255 / (max_g - min_g))))
     b2 = clamp((b - min_b) * ((255 / (max_b - min_b))))
     return [r2,g2,b2,a]
-  doFilter(c, filter, callback)
+  doRgbaFilter(c, filter, callback)
+
+saturate = (c, callback, t=0.3) ->
+  dlog('in saturate!!!!!')
+  dlog(c)
+  dlog(callback)
+  dlog(t)
+  filter = (r,g,b,a) ->
+    average = (r+g+b)/3
+    [
+      clamp(average + t * (r - average))
+      clamp(average + t * (g - average))
+      clamp(average + t * (b - average))
+      a
+    ]
+  doRgbaFilter(c, filter, callback)
 
 #ImageFilterWrapper
 #
@@ -423,13 +450,17 @@ mosaic = (c, callback, blockSize=10) -> imageFilterWrapper(c, ImageFilters.Mosai
 binarize = (c, callback, threshold=0.5) -> imageFilterWrapper(c, ImageFilters.Binarize, callback, threshold)
 #ImageFilters.BlendAdd (srcImageData, blendImageData, dx, dy)
 #ImageFilters.BlendSubtract (srcImageData, blendImageData, dx, dy)
+#
 #ImageFilters.BoxBlur (srcImageData, hRadius, vRadius, quality)
+boxBlur = (c, callback, hRadius=3, vRadius=3, quality=3) -> imageFilterWrapper(c, ImageFilters.BoxBlur, callback, hRadius, vRadius, quality)
 
 #ImageFilters.GaussianBlur (srcImageData, strength)
 # pretty slow and blocks?
 gausianBlur = (c, callback, strength=4) -> imageFilterWrapper(c, ImageFilters.GaussianBlur, callback, strength)
 
 #ImageFilters.StackBlur (srcImageData, radius)
+stackBlur = (c, callback, radius=6) -> imageFilterWrapper(c, ImageFilters.StackBlur, callback, radius)
+blur = stackBlur
 #ImageFilters.Brightness (srcImageData, brightness)
 #ImageFilters.BrightnessContrastGimp (srcImageData, brightness, contrast)
 #ImageFilters.BrightnessContrastPhotoshop (srcImageData, brightness, contrast)
@@ -442,8 +473,11 @@ gausianBlur = (c, callback, strength=4) -> imageFilterWrapper(c, ImageFilters.Ga
 #ImageFilters.Crop (srcImageData, x, y, width, height)
 #ImageFilters.CropBuiltin (srcImageData, x, y, width, height)
 #ImageFilters.Desaturate (srcImageData)
+desaturate = (c, callback) -> imageFilterWrapper(c, ImageFilters.Desaturate, callback)
+
 #ImageFilters.DisplacementMapFilter (srcImageData, mapImageData, mapX, mapY, componentX, componentY, scaleX, scaleY, mode)
 #ImageFilters.Dither (srcImageData, levels)
+stackBlur = (c, callback, levels=8) -> imageFilterWrapper(c, ImageFilters.Dither, callback, levels)
 
 #ImageFilters.Edge (srcImageData)
 edge = (c, callback) -> imageFilterWrapper(c, ImageFilters.Edge, callback)
@@ -535,7 +569,8 @@ window.Canwaste =
     makeCanvasLike: makeCanvasLike #helper (sync)
     makeCanvasToolboxLike: makeCanvasToolboxLike #helper (sync)
     simpleCopyCanvas: simpleCopyCanvas #creater (sync/async)
-    doFilter: doFilter #filter meta (sync/async)
+    doRgbaFilter: doRgbaFilter #filter meta (sync/async)
+    multiAsyncAction: multiAsyncAction #experimenta helper
   creator:
     copyCanvas: copyCanvas #creator (sync/async)
     canvas2canvas: canvas2canvas #creator (sync/async)
@@ -566,6 +601,7 @@ window.Canwaste =
     posterize: posterize #filter (sync/async)
     grayScale: grayScale #filter (sync/async)
     tint: tint #filter (sync/async)
+    saturate: saturate
     mosaic: mosaic #filter (sync/async)
     binarize: binarize #filter (sync/async)
     gausianBlur: gausianBlur #filter (sync/async) #slow and blocks
@@ -575,12 +611,7 @@ window.Canwaste =
     solarize: solarize
     transpose: transpose
     oil: oil
-
-
-
-
-
-
-
-
-
+    stackBlur: stackBlur
+    blur: blur
+    boxBlur: boxBlur
+    desaturate: desaturate
